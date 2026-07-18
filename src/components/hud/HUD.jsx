@@ -7,7 +7,9 @@ import { motion } from 'framer-motion'
 import {
   CalendarDays, Scroll, Trophy, Settings, Flame,
   Volume2, VolumeX, Plus, ScanFace,
+  Cloud, CloudAlert, RefreshCw,
 } from 'lucide-react'
+import { useSyncStore, syncNow } from '../../game/sync'
 import { useGameStore, streakFromEvents } from '../../stores/useGameStore'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
@@ -55,6 +57,30 @@ function NavTabs({ layoutId }) {
         )
       })}
     </nav>
+  )
+}
+
+/** Small cloud icon showing sync state (only when sync is set up). */
+function SyncIndicator() {
+  const syncToken = useSettingsStore(s => s.syncToken)
+  const { status, error, lastSyncAt } = useSyncStore()
+  if (!syncToken) return null
+
+  const Icon = status === 'syncing' ? RefreshCw : status === 'error' ? CloudAlert : Cloud
+  const color = status === 'error' ? 'text-danger' : status === 'synced' ? 'text-accent' : 'text-ink-muted'
+  const title = status === 'error'
+    ? `Sync error: ${error}`
+    : lastSyncAt ? `Synced ${lastSyncAt.toLocaleTimeString()} — click to sync now` : 'Click to sync now'
+
+  return (
+    <button
+      onClick={syncNow}
+      title={title}
+      aria-label={title}
+      className={`p-2 rounded-lg cursor-pointer transition-colors duration-200 hover:bg-surface-2 ${color}`}
+    >
+      <Icon size={16} className={status === 'syncing' ? 'animate-spin' : ''} aria-hidden />
+    </button>
   )
 }
 
@@ -127,6 +153,8 @@ export default function HUD() {
             <span>{streak}</span>
             <span className="sr-only">day streak</span>
           </div>
+
+          <SyncIndicator />
 
           <button
             onClick={() => { toggleMute(); play('click') }}

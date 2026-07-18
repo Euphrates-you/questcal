@@ -3,7 +3,9 @@
 // Cosmetics gated by level show a lock + the level required,
 // which is what makes leveling feel worth it.
 // ============================================================
-import { Lock, Volume2, VolumeX, RotateCcw } from 'lucide-react'
+import { useState } from 'react'
+import { Lock, Volume2, VolumeX, RotateCcw, Cloud, RefreshCw } from 'lucide-react'
+import { useSyncStore, syncNow } from '../../game/sync'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useGameStore } from '../../stores/useGameStore'
 import { useCalendarStore } from '../../stores/useCalendarStore'
@@ -26,6 +28,64 @@ function Section({ title, sub, children }) {
 
 function requiredLevel(type, id) {
   return LEVEL_REWARDS.find(r => r.type === type && r.id === id)?.level
+}
+
+/** Cloud sync setup — one save across all your devices. */
+function CloudSyncSection({ settings }) {
+  const { status, error, lastSyncAt } = useSyncStore()
+  const [draft, setDraft] = useState('')
+  const field = 'w-full px-3 py-2 rounded-lg bg-surface-2 border border-edge text-sm text-ink outline-none focus:border-accent'
+
+  return (
+    <Section
+      title="Cloud sync"
+      sub="Shares one save between your PC, iPad, and phone via your private GitHub repo. The token stays on this device."
+    >
+      {settings.syncToken ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <span className={`flex items-center gap-1.5 text-sm font-medium ${status === 'error' ? 'text-danger' : 'text-success'}`}>
+            {status === 'syncing'
+              ? <><RefreshCw size={14} className="animate-spin" aria-hidden /> Syncing…</>
+              : status === 'error'
+                ? <>Sync error: {error}</>
+                : <><Cloud size={14} aria-hidden /> Connected{lastSyncAt ? ` · last sync ${lastSyncAt.toLocaleTimeString()}` : ''}</>}
+          </span>
+          <button onClick={syncNow}
+            className="px-3 py-1.5 rounded-lg border border-edge text-xs font-medium text-ink hover:bg-surface-2 cursor-pointer transition-colors duration-150">
+            Sync now
+          </button>
+          <button onClick={() => settings.set({ syncToken: '' })}
+            className="px-3 py-1.5 rounded-lg border border-edge text-xs font-medium text-ink-muted hover:text-danger cursor-pointer transition-colors duration-150">
+            Disconnect
+          </button>
+        </div>
+      ) : (
+        <div className="max-w-md space-y-2.5">
+          <p className="text-xs text-ink-muted leading-relaxed">
+            Paste a fine-grained GitHub token that can only touch{' '}
+            <code className="text-ink">{settings.syncRepo}</code> (Contents: read &amp; write).
+            Use the same token on every device you want in sync.
+          </p>
+          <input
+            type="password"
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            placeholder="github_pat_..."
+            className={field}
+            aria-label="GitHub sync token"
+          />
+          <button
+            onClick={() => { if (draft.trim()) { settings.set({ syncToken: draft.trim() }); setDraft(''); syncNow() } }}
+            disabled={!draft.trim()}
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: 'var(--accent)' }}
+          >
+            Connect sync
+          </button>
+        </div>
+      )}
+    </Section>
+  )
 }
 
 export default function SettingsPage() {
@@ -203,6 +263,9 @@ export default function SettingsPage() {
           {settings.muted ? 'Muted' : 'On'}
         </button>
       </Section>
+
+      {/* ---------------- cloud sync ---------------- */}
+      <CloudSyncSection settings={settings} />
 
       {/* ---------------- system assistant ---------------- */}
       <Section

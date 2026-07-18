@@ -8,7 +8,11 @@
 //    it, otherwise fetch and remember it for next time.
 // Bump the cache name when you want to force a fresh start.
 // ============================================================
-const CACHE = 'questcal-v1'
+const CACHE = 'questcal-v2'
+
+// Never cache live API traffic — cloud saves and AI replies must always
+// hit the network, or you'd sync against stale data.
+const NEVER_CACHE = ['api.github.com', 'api.anthropic.com']
 
 self.addEventListener('install', () => {
   self.skipWaiting() // activate the new worker immediately
@@ -25,6 +29,7 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const req = event.request
   if (req.method !== 'GET') return
+  if (NEVER_CACHE.includes(new URL(req.url).hostname)) return
 
   // Navigations: network first, cache fallback (offline support)
   if (req.mode === 'navigate') {

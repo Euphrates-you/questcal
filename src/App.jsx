@@ -8,6 +8,7 @@ import { useEffect } from 'react'
 import { useSettingsStore } from './stores/useSettingsStore'
 import { useCalendarStore } from './stores/useCalendarStore'
 import { useUiStore } from './stores/useUiStore'
+import { initSync } from './game/sync'
 import { THEMES, FONTS, ACCENTS } from './themes/themes'
 import HUD, { MobileNav } from './components/hud/HUD'
 import CalendarPage from './components/calendar/CalendarPage'
@@ -38,6 +39,10 @@ export default function App() {
 
   // First visit: create a few sample events so the board isn't empty.
   useEffect(() => { seedIfEmpty() }, [seedIfEmpty])
+
+  // Cloud sync: pulls the newest save on open, pushes after changes.
+  // Does nothing until a sync token is saved in Settings.
+  useEffect(() => { initSync() }, [])
 
   // Pay out attendance XP for plain events whose day has ended —
   // on load, then once a minute (catches midnight while the app is open).

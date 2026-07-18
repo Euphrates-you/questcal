@@ -18,6 +18,9 @@ export const useSettingsStore = create(
       frame: 'none',         // avatar frame cosmetic
       apiKey: '',            // Anthropic API key for the System Assistant
                              // (stays in YOUR browser's localStorage only)
+      syncRepo: 'Euphrates-you/questcal-save', // private repo holding save.json
+      syncToken: '',         // fine-grained GitHub token (this device only —
+                             // like apiKey, it is never synced anywhere)
 
       set: (patch) => set(patch), // tiny generic setter for simple fields
       toggleMute: () => set(s => ({ muted: !s.muted })),
