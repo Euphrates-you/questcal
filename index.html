@@ -2,8 +2,19 @@
 <html lang="en" data-theme="dark-fantasy">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover lets the app draw edge-to-edge on iPads/iPhones;
+         safe-area CSS insets keep content clear of notches and home bars -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>QuestCal — your life, but it's an RPG</title>
+
+    <!-- PWA: lets the site be installed as an app (Add to Home Screen) -->
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#04060c" />
+    <link rel="apple-touch-icon" href="icons/icon-180.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="QuestCal" />
     <!-- Display fonts per theme: Rajdhani (the System), Cinzel (fantasy),
          Orbitron (cyberpunk), Press Start 2P (pixel), Sora (minimal).
          Inter is the body font everywhere. -->

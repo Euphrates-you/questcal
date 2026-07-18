@@ -301,6 +301,12 @@ body::after {
 .glow-accent { box-shadow: var(--glow) color-mix(in oklab, var(--accent) 45%, transparent); }
 .glow-gold   { box-shadow: var(--glow) color-mix(in oklab, var(--gold) 45%, transparent); }
 
+/* Installed-app (PWA) niceties: keep the HUD clear of the iPad/iPhone
+   status bar, and stop the browser's pull-to-refresh from fighting
+   in-app scrolling. */
+header.sticky { padding-top: env(safe-area-inset-top); }
+html { overscroll-behavior-y: none; }
+
 /* Keyboard focus — visible on every theme */
 :focus-visible {
   outline: 2px solid var(--accent);

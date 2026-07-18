@@ -19,6 +19,17 @@ if (import.meta.env.DEV) {
   }
 }
 
+// PWA: register the service worker so the installed app works offline.
+// Skipped in dev (it would cache stale code) and in the artifact build
+// (the sandbox there doesn't allow service workers).
+if ('serviceWorker' in navigator && import.meta.env.PROD && import.meta.env.MODE !== 'artifact') {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register(import.meta.env.BASE_URL + 'sw.js')
+      .catch(() => { /* offline support is a bonus — never break the app over it */ })
+  })
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />
