@@ -23,8 +23,8 @@ html = html
   .replace(/<\/?body[^>]*>/gi, '')
   // remove external font links + preconnects (offline page)
   .replace(/<link[^>]*fonts\.(googleapis|gstatic)\.com[^>]*>/gi, '')
-  // remove PWA links — the artifact host has no manifest/icons to serve
-  .replace(/<link[^>]*rel="(manifest|apple-touch-icon)"[^>]*>/gi, '')
+  // remove PWA/icon links — the artifact host has no manifest/icons to serve
+  .replace(/<link[^>]*rel="(manifest|apple-touch-icon|icon)"[^>]*>/gi, '')
   // charset/viewport come from the host skeleton
   .replace(/<meta[^>]*charset[^>]*>/gi, '')
   .replace(/<meta[^>]*viewport[^>]*>/gi, '')
