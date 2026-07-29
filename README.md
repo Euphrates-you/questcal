@@ -67,13 +67,38 @@ game rebalances.
 ## Builds
 
 ```bash
-npm run build            # normal production build → dist/
-npm run build:artifact   # single-file offline build → dist/artifact.html
+npm run build             # normal production build → dist/
+npm run build:standalone  # ONE self-contained file → dist/QuestCal.html
+npm run build:artifact    # single-file fragment  → dist/artifact.html
 ```
 
-The artifact build inlines all JS/CSS and embeds the fonts, producing one
-self-contained HTML file (the AI assistant is disabled there since sandboxed
-pages can't reach the network).
+Both single-file builds inline all JS/CSS and embed the fonts. They differ in
+what survives:
+
+- **standalone** — a complete page. Double-click it, email it, or upload it to
+  any website. Cloud sync and the assistant still work when it's served over
+  https; opening it via `file://` blocks those requests (browsers refuse
+  cross-origin calls from local files) and it falls back to local storage.
+- **artifact** — a fragment for a sandboxed artifact host, which supplies its
+  own document skeleton. The assistant is disabled there because that sandbox
+  can't reach the network at all.
+
+## Getting it onto your devices
+
+QuestCal is a PWA, so it installs like a native app — own icon, own window,
+works offline. **This needs the app served over https**, which the GitHub Pages
+deploy already does. A loose `.html` file on disk can *not* be installed:
+`file://` pages can't register a service worker or a manifest, and every
+platform refuses them.
+
+It's already live at <https://euphrates-you.github.io/questcal/>:
+
+| Device | How |
+|---|---|
+| **iPhone / iPad** | Open in **Safari** (only Safari can install on iOS). Tap **Share** → **Add to Home Screen** |
+| **Mac** | **Safari:** File → Add to Dock. **Chrome/Edge:** the install icon (⊞) at the right of the address bar |
+| **Windows** | **Chrome/Edge:** the install icon (⊞) in the address bar, or ⋯ → Apps → Install this site as an app |
+| **Android** | Chrome prompts automatically, or ⋮ → Add to Home screen |
 
 ## Debugging
 

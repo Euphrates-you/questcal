@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "build:artifact": "vite build --mode artifact && node scripts/make-artifact.mjs",
+    "build:standalone": "vite build --mode standalone && node scripts/make-standalone.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
