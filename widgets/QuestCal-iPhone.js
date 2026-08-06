@@ -1,8 +1,9 @@
 // ============================================================
 // QuestCal — iPhone / iPad widget  (for the free "Scriptable" app)
 //
-// Shows your rank, level, XP bar, streak and today's quests on the
-// Home Screen or Lock Screen. Reads the same cloud save the app syncs.
+// Shows what's coming up next, plus your rank, level, XP and streak.
+// Reads the same cloud save the app syncs. Read-only: it never changes
+// anything.
 //
 // SETUP (once):
 //   1. Install "Scriptable" from the App Store.
@@ -38,6 +39,8 @@ const RANKS = [
   { id: 'S', min: 30, color: '#fcd34d' },
 ]
 
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
 // ---------- game maths (mirrors src/game/xp.js) ----------
 
 /** XP needed to climb from `level` to the next one. */
@@ -69,6 +72,13 @@ function dayKey(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
+/** 'HH:mm' -> minutes since midnight. Untimed entries sort to the end of a day. */
+function toMinutes(hhmm) {
+  if (!hhmm) return 24 * 60
+  const [h, m] = hhmm.split(':').map(Number)
+  return h * 60 + (m || 0)
+}
+
 /** Consecutive days (ending today or yesterday) with a completed entry. */
 function calcStreak(events) {
   const days = new Set(
@@ -88,6 +98,28 @@ function calcStreak(events) {
     cursor = dayKey(d)
   }
   return streak
+}
+
+/** "in 25 min" / "now" / "today" / "tomorrow 19:00" / "Mon" / "08-04". */
+function whenLabel(event, now) {
+  const today = dayKey(now)
+  const tomorrow = dayKey(new Date(now.getTime() + 86400000))
+
+  if (event.date === today) {
+    if (!event.startTime) return 'today'
+    const mins = toMinutes(event.startTime) - (now.getHours() * 60 + now.getMinutes())
+    if (mins <= 0) return 'now'
+    if (mins < 60) return `in ${mins} min`
+    return `in ${Math.round(mins / 60)}h`
+  }
+  if (event.date === tomorrow) {
+    return event.startTime ? `tmrw ${event.startTime}` : 'tomorrow'
+  }
+
+  const target = new Date(`${event.date}T12:00:00`)
+  const daysAway = Math.round((target - new Date(`${today}T12:00:00`)) / 86400000)
+  if (daysAway <= 6) return WEEKDAYS[target.getDay()]
+  return event.date.slice(5) // MM-DD
 }
 
 // ---------- loading the save ----------
@@ -126,19 +158,35 @@ function summarise(save) {
   const events = (save.calendar && save.calendar.events) || []
   const totalXp = (save.game && save.game.totalXp) || 0
   const lvl = levelFromTotalXp(totalXp)
-  const today = dayKey(new Date())
 
-  const todays = events
-    .filter(e => e.date === today)
-    .sort((a, b) => ((a.startTime || '99') < (b.startTime || '99') ? -1 : 1))
+  const now = new Date()
+  const today = dayKey(now)
+  const nowMins = now.getHours() * 60 + now.getMinutes()
+
+  // Upcoming = not done yet, and either on a later day or still ahead
+  // today (something in progress right now still counts).
+  const upcoming = events
+    .filter(e => !e.completed)
+    .filter(e =>
+      e.date > today ||
+      (e.date === today &&
+        (!e.startTime || toMinutes(e.startTime) + (e.durationMin || 0) >= nowMins)))
+    .sort((a, b) =>
+      a.date === b.date
+        ? toMinutes(a.startTime) - toMinutes(b.startTime)
+        : (a.date < b.date ? -1 : 1))
+    .map(e => ({ ...e, when: whenLabel(e, now) }))
+
+  const todays = events.filter(e => e.date === today)
 
   return {
     ...lvl,
     totalXp,
     rank: rankForLevel(lvl.level),
     streak: calcStreak(events),
-    todays,
-    done: todays.filter(e => e.completed).length,
+    upcoming,
+    todayDone: todays.filter(e => e.completed).length,
+    todayTotal: todays.length,
   }
 }
 
@@ -187,28 +235,81 @@ function addRankBadge(stack, rank, size) {
   t.textColor = new Color(rank.color)
 }
 
-/** One "· 18:00  Title" row from today's list. */
-function addQuestRow(stack, event, fontSize) {
+/** Section heading, e.g. "UP NEXT" with "TODAY 1/4" on the right. */
+function addLabelRow(stack, left, right) {
+  const row = stack.addStack()
+  row.layoutHorizontally()
+  const l = row.addText(left)
+  l.font = Font.boldSystemFont(9)
+  l.textColor = new Color(ACCENT)
+  if (right) {
+    row.addSpacer()
+    const r = row.addText(right)
+    l.lineLimit = 1
+    r.font = Font.boldSystemFont(9)
+    r.textColor = new Color(INK_MUTED)
+  }
+}
+
+/** The headline "what's next" block: title, then time + how soon. */
+function addNextBlock(stack, event, titleSize) {
+  const title = stack.addText(event.title)
+  title.font = Font.boldSystemFont(titleSize)
+  title.textColor = new Color(INK)
+  title.lineLimit = 2
+  title.minimumScaleFactor = 0.85
+
+  stack.addSpacer(3)
+
+  const sub = stack.addStack()
+  sub.layoutHorizontally()
+  sub.centerAlignContent()
+  if (event.startTime) {
+    const time = sub.addText(event.startTime)
+    time.font = Font.mediumSystemFont(12)
+    time.textColor = new Color(INK_MUTED)
+    sub.addSpacer(6)
+  }
+  const chip = sub.addStack()
+  chip.backgroundColor = new Color(ACCENT, 0.18)
+  chip.cornerRadius = 5
+  chip.setPadding(2, 6, 2, 6)
+  const when = chip.addText(event.when)
+  when.font = Font.boldSystemFont(10)
+  when.textColor = new Color(ACCENT)
+}
+
+/** A quieter follow-up row: "19:00  English Hagwon        tmrw". */
+function addUpcomingRow(stack, event, fontSize) {
   const row = stack.addStack()
   row.layoutHorizontally()
   row.centerAlignContent()
 
-  const dot = row.addText(event.completed ? '✓' : '•')
-  dot.font = Font.boldSystemFont(fontSize)
-  dot.textColor = new Color(event.completed ? SUCCESS : ACCENT)
-  row.addSpacer(5)
-
-  if (event.startTime) {
-    const time = row.addText(event.startTime)
-    time.font = Font.mediumSystemFont(fontSize - 1)
-    time.textColor = new Color(INK_MUTED)
-    row.addSpacer(5)
-  }
+  const time = row.addText(event.startTime || '—')
+  time.font = Font.mediumSystemFont(fontSize - 0.5)
+  time.textColor = new Color(INK_MUTED)
+  row.addSpacer(6)
 
   const title = row.addText(event.title)
   title.font = Font.systemFont(fontSize)
-  title.textColor = new Color(INK, event.completed ? 0.45 : 1)
+  title.textColor = new Color(INK, 0.92)
   title.lineLimit = 1
+
+  row.addSpacer()
+
+  const when = row.addText(event.when)
+  when.font = Font.systemFont(fontSize - 1)
+  when.textColor = new Color(INK_MUTED)
+  when.lineLimit = 1
+}
+
+function addAllClear(stack, size) {
+  const t = stack.addText('All clear ✓')
+  t.font = Font.boldSystemFont(size)
+  t.textColor = new Color(SUCCESS)
+  const s = stack.addText('Nothing left scheduled.')
+  s.font = Font.systemFont(size - 3)
+  s.textColor = new Color(INK_MUTED)
 }
 
 // ---------- the widget layouts ----------
@@ -217,39 +318,32 @@ function buildSmall(w, d) {
   const head = w.addStack()
   head.layoutHorizontally()
   head.centerAlignContent()
-  addRankBadge(head, d.rank, 13)
-  head.addSpacer(6)
+  addRankBadge(head, d.rank, 12)
+  head.addSpacer(5)
   const lv = head.addText(`LV ${d.level}`)
-  lv.font = Font.boldSystemFont(15)
+  lv.font = Font.boldSystemFont(14)
   lv.textColor = new Color(INK)
   head.addSpacer()
   if (d.streak > 0) {
     const fl = head.addText(`🔥${d.streak}`)
-    fl.font = Font.mediumSystemFont(13)
+    fl.font = Font.mediumSystemFont(12)
     fl.textColor = new Color(GOLD)
   }
 
-  w.addSpacer(8)
-  w.addImage(barImage(d.progress, 130, 7))
-  w.addSpacer(3)
-  const xp = w.addText(`${d.into}/${d.needed} XP`)
-  xp.font = Font.mediumSystemFont(10)
-  xp.textColor = new Color(INK_MUTED)
+  w.addSpacer(6)
+  w.addImage(barImage(d.progress, 130, 6))
 
-  w.addSpacer(8)
-  if (d.todays.length === 0) {
-    const none = w.addText('Nothing scheduled')
-    none.font = Font.systemFont(11)
-    none.textColor = new Color(INK_MUTED)
+  w.addSpacer(10)
+  addLabelRow(w, 'UP NEXT', d.todayTotal ? `${d.todayDone}/${d.todayTotal}` : null)
+  w.addSpacer(4)
+
+  if (d.upcoming.length === 0) {
+    addAllClear(w, 13)
   } else {
-    for (const e of d.todays.slice(0, 3)) {
-      addQuestRow(w, e, 11)
-      w.addSpacer(3)
-    }
-    if (d.todays.length > 3) {
-      const more = w.addText(`+${d.todays.length - 3} more`)
-      more.font = Font.systemFont(10)
-      more.textColor = new Color(INK_MUTED)
+    addNextBlock(w, d.upcoming[0], 14)
+    if (d.upcoming.length > 1) {
+      w.addSpacer(7)
+      addUpcomingRow(w, d.upcoming[1], 10.5)
     }
   }
   w.addSpacer()
@@ -262,77 +356,95 @@ function buildMedium(w, d, rows) {
   // --- left: your character ---
   const left = row.addStack()
   left.layoutVertically()
-  left.size = new Size(120, 0)
+  left.size = new Size(112, 0)
 
   const head = left.addStack()
   head.layoutHorizontally()
   head.centerAlignContent()
-  addRankBadge(head, d.rank, 15)
-  head.addSpacer(6)
+  addRankBadge(head, d.rank, 14)
+  head.addSpacer(5)
   const lv = head.addText(`LV ${d.level}`)
-  lv.font = Font.boldSystemFont(18)
+  lv.font = Font.boldSystemFont(17)
   lv.textColor = new Color(INK)
 
   left.addSpacer(8)
-  left.addImage(barImage(d.progress, 118, 8))
+  left.addImage(barImage(d.progress, 110, 7))
   left.addSpacer(4)
   const xp = left.addText(`${d.into}/${d.needed} XP`)
-  xp.font = Font.mediumSystemFont(11)
+  xp.font = Font.mediumSystemFont(10.5)
   xp.textColor = new Color(INK_MUTED)
 
-  left.addSpacer(8)
+  left.addSpacer(6)
   const streak = left.addText(d.streak > 0 ? `🔥 ${d.streak}-day streak` : 'No streak yet')
-  streak.font = Font.mediumSystemFont(11)
+  streak.font = Font.mediumSystemFont(10.5)
   streak.textColor = new Color(d.streak > 0 ? GOLD : INK_MUTED)
+
+  if (d.todayTotal > 0) {
+    left.addSpacer(4)
+    const prog = left.addText(`Today ${d.todayDone}/${d.todayTotal} done`)
+    prog.font = Font.systemFont(10.5)
+    prog.textColor = new Color(INK_MUTED)
+  }
   left.addSpacer()
 
   row.addSpacer(14)
 
-  // --- right: today ---
+  // --- right: what's coming ---
   const right = row.addStack()
   right.layoutVertically()
 
-  const label = right.addText(`TODAY · ${d.done}/${d.todays.length}`)
-  label.font = Font.boldSystemFont(10)
-  label.textColor = new Color(ACCENT)
-  right.addSpacer(6)
+  addLabelRow(right, 'UP NEXT')
+  right.addSpacer(5)
 
-  if (d.todays.length === 0) {
-    const none = right.addText('Nothing scheduled, Student.')
-    none.font = Font.systemFont(12)
-    none.textColor = new Color(INK_MUTED)
+  if (d.upcoming.length === 0) {
+    addAllClear(right, 15)
   } else {
-    for (const e of d.todays.slice(0, rows)) {
-      addQuestRow(right, e, 12)
-      right.addSpacer(4)
-    }
-    if (d.todays.length > rows) {
-      const more = right.addText(`+${d.todays.length - rows} more`)
-      more.font = Font.systemFont(11)
-      more.textColor = new Color(INK_MUTED)
+    addNextBlock(right, d.upcoming[0], 15)
+    const rest = d.upcoming.slice(1, 1 + rows)
+    if (rest.length) {
+      right.addSpacer(9)
+      for (const e of rest) {
+        addUpcomingRow(right, e, 11.5)
+        right.addSpacer(4)
+      }
+      const remaining = d.upcoming.length - 1 - rest.length
+      if (remaining > 0) {
+        const more = right.addText(`+${remaining} more`)
+        more.font = Font.systemFont(10)
+        more.textColor = new Color(INK_MUTED)
+      }
     }
   }
   right.addSpacer()
 }
 
-/** Lock Screen (rectangular): one tight line plus a bar. */
+/** Lock Screen (rectangular): the next thing, and how soon. */
 function buildAccessory(w, d) {
+  if (d.upcoming.length === 0) {
+    const t = w.addText(`LV ${d.level} · all clear`)
+    t.font = Font.boldSystemFont(13)
+    const s = w.addText('Nothing left scheduled')
+    s.font = Font.systemFont(11)
+    return
+  }
+  const next = d.upcoming[0]
+
   const head = w.addStack()
   head.layoutHorizontally()
   head.centerAlignContent()
-  const t = head.addText(`${d.rank.id} · LV ${d.level}`)
-  t.font = Font.boldSystemFont(13)
+  const time = head.addText(next.startTime || 'today')
+  time.font = Font.boldSystemFont(13)
+  head.addSpacer(5)
+  const when = head.addText(next.when)
+  when.font = Font.systemFont(12)
   head.addSpacer()
-  if (d.streak > 0) {
-    const fl = head.addText(`🔥${d.streak}`)
-    fl.font = Font.mediumSystemFont(12)
-  }
-  w.addSpacer(3)
-  const sub = w.addText(
-    d.todays.length ? `${d.done}/${d.todays.length} today · ${d.into}/${d.needed} XP`
-                    : `${d.into}/${d.needed} XP`,
-  )
-  sub.font = Font.systemFont(11)
+
+  const title = w.addText(next.title)
+  title.font = Font.mediumSystemFont(13)
+  title.lineLimit = 1
+
+  const sub = w.addText(`LV ${d.level}${d.streak > 0 ? ` · 🔥${d.streak}` : ''}`)
+  sub.font = Font.systemFont(10)
 }
 
 /** Anything went wrong → say what to do about it. */
@@ -363,7 +475,7 @@ try {
 
   if (accessory) buildAccessory(widget, data)
   else if (family === 'small') buildSmall(widget, data)
-  else buildMedium(widget, data, family === 'large' ? 8 : 4)
+  else buildMedium(widget, data, family === 'large' ? 7 : 3)
 
   if (stale && !accessory) {
     const note = widget.addText('offline — showing last synced save')

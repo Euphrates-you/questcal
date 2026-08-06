@@ -1,7 +1,10 @@
 # QuestCal widgets
 
-Glanceable QuestCal on your iPhone Home/Lock Screen and your MacBook desktop:
-rank, level, XP bar, streak, and today's quests.
+Glanceable QuestCal on your iPhone Home/Lock Screen and your MacBook desktop.
+
+They lead with **UP NEXT** — the next thing you actually have to do, with how
+soon it is ("now", "in 15 min", "in 3h", "tomorrow 08:00", "Sun") — followed by
+the ones after it, plus your rank, level, XP bar and streak.
 
 Both widgets read the **same cloud save** the app syncs to your private
 `questcal-save` repo, so they always match whatever device you last used.
@@ -56,6 +59,18 @@ both screens without installing anything on the Mac.
 5. Drag the widget anywhere on your desktop.
 
 It refreshes every 5 minutes.
+
+## What counts as "upcoming"
+
+Anything **not yet completed** that is either later today or on a future day.
+So:
+
+- Something running right now (started, but its duration hasn't run out) shows
+  as **now** — it stays visible while you're in it.
+- Finished quests disappear from the list the moment you tick them off.
+- Once today is done, the widget rolls straight on to tomorrow.
+- **Past, never-completed quests are not shown.** They'd pile up forever and
+  bury what's actually next. Today's progress is still visible as `TODAY 1/6`.
 
 ## Notes
 
