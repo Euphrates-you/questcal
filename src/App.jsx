@@ -21,6 +21,7 @@ import LevelUpOverlay from './components/fx/LevelUpOverlay'
 import Toasts from './components/fx/Toasts'
 import XpBursts from './components/fx/XpBursts'
 import AssistantPanel from './components/assistant/AssistantPanel'
+import CommandPalette from './components/CommandPalette'
 
 // One entry per page id used by the HUD navigation.
 const PAGES = {
@@ -51,6 +52,43 @@ export default function App() {
     const t = setInterval(settleEvents, 60_000)
     return () => clearInterval(t)
   }, [settleEvents])
+
+  // ---- keyboard shortcuts (desktop) ----
+  // Ctrl/Cmd+K always works; single letters only when you're not typing
+  // and no dialog is open, so they never fight a text field.
+  useEffect(() => {
+    const onKey = (e) => {
+      const ui = useUiStore.getState()
+      const el = document.activeElement
+      const typing = el && (
+        el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' ||
+        el.tagName === 'SELECT' || el.isContentEditable
+      )
+
+      if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault()
+        ui.togglePalette()
+        return
+      }
+      if (typing || e.metaKey || e.ctrlKey || e.altKey) return
+      if (ui.paletteOpen || ui.modal) return // those handle their own keys
+
+      const go = (fn) => { e.preventDefault(); fn() }
+      switch (e.key) {
+        case 'ArrowLeft': return go(() => ui.stepFocus(-1))
+        case 'ArrowRight': return go(() => ui.stepFocus(1))
+        case 't': case 'T': return go(() => { ui.goToday(); ui.setPage('calendar') })
+        case 'm': case 'M': return go(() => { ui.setView('month'); ui.setPage('calendar') })
+        case 'w': case 'W': return go(() => { ui.setView('week'); ui.setPage('calendar') })
+        case 'd': case 'D': return go(() => { ui.setView('day'); ui.setPage('calendar') })
+        case 'n': case 'N': return go(() => ui.openNewEvent({}))
+        case '/': case '?': return go(() => ui.openPalette())
+        default:
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   // Push the visual settings onto <html> as attributes / CSS variables.
   useEffect(() => {
@@ -94,6 +132,7 @@ export default function App() {
       <Toasts />
       <XpBursts />
       <AssistantPanel />
+      <CommandPalette />
     </div>
   )
 }

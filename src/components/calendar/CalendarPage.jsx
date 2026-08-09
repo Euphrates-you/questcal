@@ -4,11 +4,10 @@
 // transitions between them.
 // ============================================================
 import { motion } from 'framer-motion'
-import {
-  format, addMonths, addWeeks, addDays, startOfWeek, endOfWeek,
-} from 'date-fns'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { format, parseISO, startOfWeek, endOfWeek } from 'date-fns'
+import { ChevronLeft, ChevronRight, Search, AlertTriangle } from 'lucide-react'
 import { useUiStore } from '../../stores/useUiStore'
+import { useCalendarStore, isQuest } from '../../stores/useCalendarStore'
 import { WEEK_STARTS_ON } from '../../game/config'
 import { play } from '../../game/sound'
 import MonthView from './MonthView'
@@ -26,14 +25,17 @@ function headerTitle(view, date) {
 }
 
 export default function CalendarPage() {
-  const { view, setView, focusDate, setFocusDate } = useUiStore()
+  const { view, setView, focusDate, goToday, stepFocus, jumpToDate, openPalette } = useUiStore()
+  const events = useCalendarStore(s => s.events)
 
-  const step = (dir) => {
-    play('click')
-    if (view === 'month') setFocusDate(addMonths(focusDate, dir))
-    else if (view === 'week') setFocusDate(addWeeks(focusDate, dir))
-    else setFocusDate(addDays(focusDate, dir))
-  }
+  const step = (dir) => { play('click'); stepFocus(dir) }
+
+  // Quests whose day has passed and were never ticked off. Plain events
+  // settle themselves, so anything left here is genuinely unfinished.
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const overdue = events
+    .filter(e => isQuest(e) && !e.completed && e.date < today)
+    .sort((a, b) => (a.date < b.date ? -1 : 1))
 
   // A key that changes whenever the visible range changes → drives the
   // enter/exit animation between views and when paging through time.
@@ -53,7 +55,8 @@ export default function CalendarPage() {
             <ChevronLeft size={16} />
           </button>
           <button
-            onClick={() => { setFocusDate(new Date()); play('click') }}
+            onClick={() => { goToday(); play('click') }}
+            title="Jump to today (T)"
             className="px-3 py-1.5 rounded-lg border border-edge bg-surface hover:bg-surface-2 text-sm font-medium text-ink cursor-pointer transition-colors duration-200">
             Today
           </button>
@@ -63,7 +66,35 @@ export default function CalendarPage() {
           </button>
         </div>
 
+        {/* unfinished quests from earlier days — click to go fix them */}
+        {overdue.length > 0 && (
+          <button
+            onClick={() => { jumpToDate(parseISO(overdue[0].date)); play('click') }}
+            title={`Oldest: ${overdue[0].title} on ${overdue[0].date}`}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer transition-colors duration-200"
+            style={{
+              color: 'var(--gold)',
+              borderColor: 'color-mix(in oklab, var(--gold) 45%, transparent)',
+              background: 'color-mix(in oklab, var(--gold) 12%, transparent)',
+            }}
+          >
+            <AlertTriangle size={13} aria-hidden />
+            {overdue.length} overdue
+          </button>
+        )}
+
         <div className="flex-1" />
+
+        {/* search / command palette */}
+        <button
+          onClick={() => { openPalette(); play('click') }}
+          title="Search your calendar (Ctrl+K)"
+          aria-label="Search your calendar"
+          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-edge bg-surface hover:bg-surface-2 text-ink-muted hover:text-ink cursor-pointer transition-colors duration-200"
+        >
+          <Search size={15} aria-hidden />
+          <kbd className="hidden lg:block text-[10px] border border-edge rounded px-1.5 py-0.5">Ctrl K</kbd>
+        </button>
 
         {/* view switcher with a sliding highlight pill */}
         <div className="flex p-1 rounded-xl border border-edge bg-surface" role="tablist" aria-label="Calendar view">

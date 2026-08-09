@@ -122,6 +122,19 @@ export const useCalendarStore = create(
         set(s => ({ events: s.events.filter(e => e.id !== id) }))
       },
 
+      /**
+       * Delete every entry that was created together as one repeat series.
+       * Completed ones give their XP back, same rule as un-completing.
+       */
+      deleteSeries(seriesId) {
+        if (!seriesId) return 0
+        const doomed = get().events.filter(e => e.seriesId === seriesId)
+        const refund = doomed.filter(e => e.completed).reduce((sum, e) => sum + (e.xp || 0), 0)
+        set(s => ({ events: s.events.filter(e => e.seriesId !== seriesId) }))
+        if (refund > 0) useGameStore.getState().grantXp(-refund)
+        return doomed.length
+      },
+
       /** Drag-and-drop reschedule: new day, optionally a new start time. */
       moveEvent(id, newDate, newStartTime) {
         set(s => ({

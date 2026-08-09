@@ -43,6 +43,14 @@ export default function EventChip({ event }) {
           : { background: 'transparent', boxShadow: `inset 0 0 0 1.5px ${cat.color}` }}
         aria-hidden
       />
+      {/* Start time, so the month grid reads like a schedule at a glance.
+          Untimed entries show nothing rather than a placeholder. */}
+      {event.startTime && (
+        <span className={`shrink-0 text-[10px] font-semibold tabular-nums leading-none
+          ${event.completed ? 'text-ink-muted/70' : 'text-ink-muted'}`}>
+          {event.startTime}
+        </span>
+      )}
       <span className={`flex-1 truncate font-medium text-ink ${event.completed ? 'line-through' : ''}`}>
         {event.title}
       </span>

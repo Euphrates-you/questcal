@@ -16,8 +16,18 @@ Requires Node.js 20+.
 
 ## Features
 
-- **Calendar** — month / week / day views, drag-and-drop rescheduling,
-  event modal with live XP preview and gate ranks (E/C/A/S)
+- **Calendar** — month / week / day views with start times shown in the month
+  grid, drag-and-drop rescheduling, event modal with live XP preview and gate
+  ranks (E/C/A/S)
+- **Repeats** — daily / weekdays / weekly / fortnightly for up to 52 entries,
+  with a live preview of the last date and total XP. Entries made together
+  share a series, so one click deletes the whole run
+- **Quick search** (`Ctrl/Cmd + K`) — find any entry by name across every
+  month, or jump to a view; Enter opens the day it's on
+- **Keyboard shortcuts** — `N` new, `T` today, `←`/`→` prev/next,
+  `M`/`W`/`D` month/week/day
+- **Overdue tracking** — quests you never ticked off surface as a badge in the
+  calendar header; click it to jump to the oldest one
 - **Game systems** — XP & levels, Student ranks, daily/weekly/custom quests,
   streaks, 17 achievements, level-gated cosmetics
 - **Status window** — six stats (STR/INT/FOC/CHA/VIT/DEX) trained by the

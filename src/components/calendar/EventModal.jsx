@@ -6,11 +6,12 @@
 import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { format } from 'date-fns'
-import { X, Trash2, Zap, Swords, CalendarDays } from 'lucide-react'
+import { X, Trash2, Zap, Swords, CalendarDays, Repeat } from 'lucide-react'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useUiStore } from '../../stores/useUiStore'
 import { CATEGORIES, DIFFICULTY } from '../../game/config'
 import { calcEventXp, calcAttendanceXp } from '../../game/xp'
+import { expandRepeat, REPEAT_OPTIONS, MAX_OCCURRENCES, DEFAULT_OCCURRENCES } from '../../game/recurrence'
 import { play } from '../../game/sound'
 
 const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240]
@@ -21,7 +22,7 @@ const label = 'block text-xs font-semibold uppercase tracking-wider text-ink-mut
 export default function EventModal() {
   const modal = useUiStore(s => s.modal)
   const closeModal = useUiStore(s => s.closeModal)
-  const { events, addEvent, updateEvent, deleteEvent } = useCalendarStore()
+  const { events, addEvent, updateEvent, deleteEvent, deleteSeries } = useCalendarStore()
 
   const editing = modal?.eventId ? events.find(e => e.id === modal.eventId) : null
 
@@ -38,6 +39,8 @@ export default function EventModal() {
       category: 'work',
       difficulty: 'medium',
       notes: '',
+      repeat: 'none',
+      repeatCount: DEFAULT_OCCURRENCES,
     })
   }, [modal]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -56,16 +59,42 @@ export default function EventModal() {
     : calcAttendanceXp(form.durationMin)
   const set = (patch) => setForm(f => ({ ...f, ...patch }))
 
+  // Dates this will create. Only meaningful while creating — editing one
+  // entry must never silently rewrite the rest of its series.
+  const repeatDates = form && !editing && form.repeat && form.repeat !== 'none'
+    ? expandRepeat(form.date, form.repeat, form.repeatCount)
+    : null
+
+  // How many entries were created alongside this one, if any.
+  const seriesCount = editing?.seriesId
+    ? events.filter(e => e.seriesId === editing.seriesId).length
+    : 0
+
   const save = () => {
-    const data = { ...form, title: form.title.trim() || (isQuestForm ? 'Untitled quest' : 'Untitled event') }
-    if (editing) updateEvent(editing.id, data)
-    else addEvent(data)
+    // repeat/repeatCount are form-only controls, not stored on the event.
+    const { repeat, repeatCount, ...rest } = form
+    const data = { ...rest, title: form.title.trim() || (isQuestForm ? 'Untitled quest' : 'Untitled event') }
+
+    if (editing) {
+      updateEvent(editing.id, data)
+    } else if (repeatDates && repeatDates.length > 1) {
+      const seriesId = crypto.randomUUID() // lets us delete the whole run later
+      repeatDates.forEach(date => addEvent({ ...data, date, seriesId }))
+    } else {
+      addEvent(data)
+    }
     play('click')
     closeModal()
   }
 
   const remove = () => {
     deleteEvent(editing.id)
+    play('undo')
+    closeModal()
+  }
+
+  const removeSeries = () => {
+    deleteSeries(editing.seriesId)
     play('undo')
     closeModal()
   }
@@ -174,6 +203,48 @@ export default function EventModal() {
               </select>
             </div>
 
+            {/* repeat — creating only; editing one entry shouldn't rewrite a series */}
+            {!editing && (
+              <div>
+                <span className={label}>Repeat</span>
+                <div className="flex gap-2">
+                  <select
+                    className={`${field} flex-1 cursor-pointer`}
+                    value={form.repeat}
+                    onChange={e => set({ repeat: e.target.value })}
+                    aria-label="Repeat"
+                  >
+                    {REPEAT_OPTIONS.map(o => (
+                      <option key={o.id} value={o.id}>{o.label}</option>
+                    ))}
+                  </select>
+                  {form.repeat !== 'none' && (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <input
+                        type="number" min="2" max={MAX_OCCURRENCES}
+                        className={`${field} w-[4.5rem] text-center`}
+                        value={form.repeatCount}
+                        onChange={e => set({ repeatCount: Number(e.target.value) })}
+                        aria-label="Number of repeats"
+                      />
+                      <span className="text-xs text-ink-muted">times</span>
+                    </div>
+                  )}
+                </div>
+                {repeatDates && repeatDates.length > 1 && (
+                  <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-[11px] text-ink-muted">
+                    <Repeat size={11} aria-hidden />
+                    Creates {repeatDates.length} entries, last on{' '}
+                    <span className="text-ink">{repeatDates[repeatDates.length - 1]}</span>
+                    <span aria-hidden>·</span>
+                    <span className="text-gold font-semibold tabular-nums">
+                      {repeatDates.length * xpPreview} XP total
+                    </span>
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* category chips */}
             <div>
               <span className={label}>Category</span>
@@ -246,6 +317,12 @@ export default function EventModal() {
                 <Trash2 size={14} aria-hidden /> Delete
               </button>
             )}
+            {editing && seriesCount > 1 && (
+              <button onClick={removeSeries} title={`Delete all ${seriesCount} entries in this repeat`}
+                className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs font-medium text-ink-muted hover:text-danger cursor-pointer transition-colors duration-150">
+                <Repeat size={13} aria-hidden /> Delete all {seriesCount}
+              </button>
+            )}
             <div className="flex-1" />
             <button onClick={closeModal}
               className="px-4 py-2 rounded-lg text-sm font-medium text-ink-muted hover:text-ink cursor-pointer">
@@ -254,7 +331,9 @@ export default function EventModal() {
             <motion.button whileTap={{ scale: 0.96 }} onClick={save}
               className="px-5 py-2 rounded-lg text-sm font-semibold text-white cursor-pointer glow-accent"
               style={{ background: 'linear-gradient(135deg, var(--accent), color-mix(in oklab, var(--accent) 65%, var(--accent-2)))' }}>
-              {editing ? 'Save changes' : isQuestForm ? 'Add quest' : 'Add event'}
+              {editing ? 'Save changes'
+                : repeatDates && repeatDates.length > 1 ? `Add ${repeatDates.length}`
+                : isQuestForm ? 'Add quest' : 'Add event'}
             </motion.button>
           </div>
         </motion.div>
